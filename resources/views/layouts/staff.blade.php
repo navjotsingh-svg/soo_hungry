@@ -8,7 +8,7 @@
     <link rel="apple-touch-icon" href="{{ asset('brand/icon.png') }}">
     <link rel="stylesheet" href="{{ asset('css/staff.css') }}?v={{ filemtime(public_path('css/staff.css')) }}">
 </head>
-<body>
+<body class="app-dark">
 <a class="skip" href="#content">Skip to content</a>
 <div class="shell">
     <aside class="side">
@@ -60,10 +60,12 @@
                 <a class="nav-link {{ request()->routeIs('subscribers.*') ? 'active' : '' }}" href="{{ route('subscribers.index') }}">Subscribers</a>
                 <a class="nav-link {{ request()->routeIs('billing.*') ? 'active' : '' }}" href="{{ route('billing.index') }}">Dues</a>
             @endif
+            <p class="nav-label">Account</p>
             @if ($membership->role->changesCredentials())
-                <p class="nav-label">Account</p>
+                <a class="nav-link {{ request()->routeIs('staff.*') ? 'active' : '' }}" href="{{ route('staff.index') }}">Staff</a>
                 <a class="nav-link {{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.edit') }}">Settings</a>
             @endif
+            <a class="nav-link {{ request()->routeIs('account.password') ? 'active' : '' }}" href="{{ route('account.password') }}">Password</a>
         </nav>
         <form class="logout" method="post" action="{{ route('logout') }}">
             @csrf

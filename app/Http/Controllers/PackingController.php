@@ -26,7 +26,14 @@ class PackingController extends StaffController
     {
         $merchant = $this->merchant($request);
         abort_unless($merchant->hasModule('tiffin'), 404);
-        $date = $request->query('date', CarbonImmutable::now($merchant->timezone)->addDay()->toDateString());
+        $now = CarbonImmutable::now($merchant->timezone);
+        $today = $now->toDateString();
+        $tomorrow = $now->addDay()->toDateString();
+        $date = $request->query('date', $tomorrow);
+        $slot = $request->query('slot');
+        if (! in_array($slot, ['breakfast', 'lunch', 'dinner'], true)) {
+            $slot = null;
+        }
         $entries = ScheduleEntry::query()
             ->where('merchant_id', $merchant->id)
             ->whereDate('service_date', $date)
@@ -66,6 +73,9 @@ class PackingController extends StaffController
 
         return view('tiffin.packing', [
             'date' => $date,
+            'today' => $today,
+            'tomorrow' => $tomorrow,
+            'slot' => $slot,
             'entries' => $entries,
             'pending' => $pending,
             'canApprove' => $request->attributes->get('membership')->role->value === 'owner',
@@ -82,7 +92,7 @@ class PackingController extends StaffController
         $wasScheduled = $entry->status === 'scheduled';
         $updated = $fulfillment->fulfill($entry, $request->user());
 
-        return $this->backToDate($updated, $wasScheduled
+        return $this->backToDate($request, $updated, $wasScheduled
             ? $updated->customer->displayName().' '.ucfirst($updated->slot).' is packed.'
             : $updated->customer->displayName().' '.ucfirst($updated->slot).' is already '.str_replace('_', ' ', $updated->status).'.');
     }
@@ -94,7 +104,7 @@ class PackingController extends StaffController
         $updated = $assignment->skip($entry, $request->user());
         $label = $updated->customer->displayName().' '.ucfirst($updated->slot);
 
-        return $this->backToDate($updated, $wasScheduled
+        return $this->backToDate($request, $updated, $wasScheduled
             ? $label.' is cancelled. The credit stays on the plan.'
             : $label.' is already '.str_replace('_', ' ', $updated->status).'.');
     }
@@ -147,15 +157,27 @@ class PackingController extends StaffController
         );
 
         return redirect()
-            ->to(route('packing.index', ['date' => $data['date']]).'#assignments')
+            ->to(route('packing.index', $this->listQuery($data['date'], $request)).'#assignments')
             ->with('status', $customer->displayName().' is set for those days.');
     }
 
-    private function backToDate(ScheduleEntry $entry, string $message): RedirectResponse
+    private function backToDate(Request $request, ScheduleEntry $entry, string $message): RedirectResponse
     {
         return redirect()
-            ->to(route('packing.index', ['date' => $entry->service_date->toDateString()]).'#list')
+            ->to(route('packing.index', $this->listQuery($entry->service_date->toDateString(), $request)).'#list')
             ->with('status', $message);
+    }
+
+    /** @return array{date: string, slot?: string} */
+    private function listQuery(string $date, Request $request): array
+    {
+        $query = ['date' => $date];
+        $slot = $request->input('slot');
+        if (in_array($slot, ['breakfast', 'lunch', 'dinner'], true)) {
+            $query['slot'] = $slot;
+        }
+
+        return $query;
     }
 
     public function approveLate(Request $request, ProposedAction $action, ActionConfirmer $confirmer): RedirectResponse

@@ -1,62 +1,87 @@
 @extends('layouts.staff')
 @section('content')
+    @php
+        $meals = ['breakfast' => 'Breakfast', 'lunch' => 'Lunch', 'dinner' => 'Dinner'];
+        $activeMeal = $slot;
+        $dayLabel = \Carbon\CarbonImmutable::parse($date)->format('l, F j');
+        $when = $date === $today ? 'Today' : ($date === $tomorrow ? 'Tomorrow' : $dayLabel);
+    @endphp
     <header class="page">
         <div>
-            <p class="kicker">Kitchen</p>
-            <h1>Packing</h1>
-            <p class="lede">Pack a meal when it goes out. Cancel takes one breakfast, lunch, or dinner off this date and keeps the credit.</p>
+            <p class="kicker">Kitchen · {{ $when }}</p>
+            <h1>{{ $dayLabel }}</h1>
+            <p class="lede">Check today’s orders or tomorrow’s, then open breakfast, lunch, or dinner. Pack a meal when it goes out. Cancel takes that one meal off this date and keeps the credit.</p>
         </div>
         <form class="page-actions" method="get">
-            <label>Date<input type="date" name="date" value="{{ $date }}"></label>
+            @if ($activeMeal)<input type="hidden" name="slot" value="{{ $activeMeal }}">@endif
+            <label>Another date<input type="date" name="date" value="{{ $date }}"></label>
             <button class="quiet" type="submit">Show</button>
         </form>
     </header>
+    <nav class="segment" aria-label="Tiffin day">
+        <a class="{{ $date === $today ? 'active' : '' }}" href="{{ route('packing.index', array_filter(['date' => $today, 'slot' => $activeMeal])) }}">Today</a>
+        <a class="{{ $date === $tomorrow ? 'active' : '' }}" href="{{ route('packing.index', array_filter(['date' => $tomorrow, 'slot' => $activeMeal])) }}">Tomorrow</a>
+    </nav>
+    <nav class="segment" aria-label="Meal">
+        <a class="{{ $activeMeal ? '' : 'active' }}" href="{{ route('packing.index', ['date' => $date]) }}">All meals</a>
+        @foreach ($meals as $value => $label)
+            <a class="{{ $activeMeal === $value ? 'active' : '' }}" href="{{ route('packing.index', ['date' => $date, 'slot' => $value]) }}">{{ $label }}</a>
+        @endforeach
+    </nav>
     <div class="grid">
-        @foreach (['breakfast', 'lunch', 'dinner'] as $slot)
-            <article class="metric">
-                <span>{{ ucfirst($slot) }} to pack</span>
-                <strong>{{ $entries->where('slot', $slot)->where('status', 'scheduled')->sum('quantity') }}</strong>
+        @foreach ($meals as $value => $label)
+            <a class="metric {{ $activeMeal === $value ? 'active' : '' }}" href="{{ route('packing.index', ['date' => $date, 'slot' => $value]) }}">
+                <span>{{ $label }} to pack</span>
+                <strong>{{ $entries->where('slot', $value)->where('status', 'scheduled')->sum('quantity') }}</strong>
+            </a>
+        @endforeach
+    </div>
+    <div id="list" class="meal-lists">
+        @foreach ($meals as $value => $label)
+            @continue($activeMeal && $activeMeal !== $value)
+            @php($rows = $entries->where('slot', $value))
+            <article class="card meal-list">
+                <div class="meal-list-head">
+                    <h2>{{ $label }}</h2>
+                    <span class="pill">{{ $rows->where('status', 'scheduled')->sum('quantity') }} to pack</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Customer</th><th>Diet</th><th class="num">Qty</th><th>Address</th><th>Notes</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                        @forelse ($rows as $entry)
+                            <tr>
+                                <td><strong>{{ $entry->customer->displayName() }}</strong></td>
+                                <td>
+                                    @if ($entry->diet)
+                                        <span class="pill {{ $entry->diet === 'veg' ? 'good' : 'bad' }}">{{ \App\Models\TiffinMenuItem::DIETS[$entry->diet] ?? $entry->diet }}</span>
+                                    @else
+                                        {{ ucfirst($entry->meal_type) }}
+                                    @endif
+                                    <span class="pill {{ $entry->status === 'scheduled' ? 'good' : ($entry->status === 'fulfilled' ? '' : 'warn') }}">{{ \Illuminate\Support\Str::headline($entry->status) }}</span>
+                                    @if ($entry->authorized_late_by)<span class="pill warn">Late approval</span>@endif
+                                </td>
+                                <td class="num">{{ $entry->quantity }}</td>
+                                <td>{{ $entry->customer->address }}</td>
+                                <td>{{ $entry->subscription->packing_notes }}</td>
+                                <td class="actions">
+                                    @if ($entry->status === 'scheduled')
+                                        <form method="post" action="{{ route('packing.fulfill', $entry) }}">@csrf @if ($activeMeal)<input type="hidden" name="slot" value="{{ $activeMeal }}">@endif<button type="submit">Packed</button></form>
+                                        <form method="post" action="{{ route('packing.skip', $entry) }}">@csrf @if ($activeMeal)<input type="hidden" name="slot" value="{{ $activeMeal }}">@endif<button class="quiet" type="submit">Cancel</button></form>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="empty">No {{ strtolower($label) }} orders for this date.</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </article>
         @endforeach
     </div>
-    <article class="card" id="list" style="margin-top:16px">
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr><th>Customer</th><th>Meal</th><th class="num">Qty</th><th>Address</th><th>Notes</th><th></th></tr>
-                </thead>
-                <tbody>
-                @forelse ($entries as $entry)
-                    <tr>
-                        <td><strong>{{ $entry->customer->displayName() }}</strong></td>
-                        <td>
-                            {{ ucfirst($entry->slot) }}
-                            @if ($entry->diet)
-                                <span class="pill {{ $entry->diet === 'veg' ? 'good' : 'bad' }}">{{ \App\Models\TiffinMenuItem::DIETS[$entry->diet] ?? $entry->diet }}</span>
-                            @else
-                                · {{ $entry->meal_type }}
-                            @endif
-                            <br>
-                            <span class="pill {{ $entry->status === 'scheduled' ? 'good' : ($entry->status === 'fulfilled' ? '' : 'warn') }}">{{ \Illuminate\Support\Str::headline($entry->status) }}</span>
-                            @if ($entry->authorized_late_by)<span class="pill warn">Late approval</span>@endif
-                        </td>
-                        <td class="num">{{ $entry->quantity }}</td>
-                        <td>{{ $entry->customer->address }}</td>
-                        <td>{{ $entry->subscription->packing_notes }}</td>
-                        <td class="actions">
-                            @if ($entry->status === 'scheduled')
-                                <form method="post" action="{{ route('packing.fulfill', $entry) }}">@csrf<button type="submit">Packed</button></form>
-                                <form method="post" action="{{ route('packing.skip', $entry) }}">@csrf<button class="quiet" type="submit">Cancel</button></form>
-                            @endif
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="6" class="empty">Nothing is scheduled for this date.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
-    </article>
     <article class="card" id="assignments" style="margin-top:16px">
         <h2>Who gets tiffin</h2>
         <p class="muted">Tick each meal on the days they want it. Leave Saturday lunch clear if they skip that meal. Saving updates the kitchen list from today onward. It does not send a new bill.</p>
@@ -65,6 +90,7 @@
             <form class="assign-card" method="post" action="{{ route('packing.assign', $customer) }}">
                 @csrf
                 <input type="hidden" name="date" value="{{ $date }}">
+                @if ($activeMeal)<input type="hidden" name="slot" value="{{ $activeMeal }}">@endif
                 <input type="hidden" name="slots_present" value="1">
                 <input type="hidden" name="schedule_for" value="{{ $customer->id }}">
                 <div class="assign-head">

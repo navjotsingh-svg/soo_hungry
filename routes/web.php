@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AccountPasswordController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CafeOrderController;
 use App\Http\Controllers\ChatLinkController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\MenuController;
 use App\Http\Controllers\MerchantSwitchController;
 use App\Http\Controllers\PackingController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\StaffDirectoryController;
 use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\TiffinMenuController;
 use App\Http\Controllers\WhatsAppWebhookController;
@@ -34,6 +36,8 @@ Route::middleware(['auth', 'merchant'])->group(function (): void {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
     Route::post('/merchant', MerchantSwitchController::class)->name('merchant.switch');
     Route::get('/today', DashboardController::class)->name('dashboard');
+    Route::get('/password', [AccountPasswordController::class, 'edit'])->name('account.password');
+    Route::put('/password', [AccountPasswordController::class, 'update'])->name('account.password.update');
 
     Route::middleware('role:owner,service')->group(function (): void {
         Route::get('/customers', [CustomerDirectoryController::class, 'index'])->name('customers.index');
@@ -62,6 +66,8 @@ Route::middleware(['auth', 'merchant'])->group(function (): void {
     Route::middleware('role:owner,kitchen,service')->group(function (): void {
         Route::get('/tiffin-menu', [TiffinMenuController::class, 'index'])->name('tiffin-menu.index');
         Route::post('/tiffin-menu', [TiffinMenuController::class, 'store'])->name('tiffin-menu.store');
+        Route::get('/tiffin-menu/{tiffinMenuItem}/edit', [TiffinMenuController::class, 'edit'])->name('tiffin-menu.edit');
+        Route::put('/tiffin-menu/{tiffinMenuItem}', [TiffinMenuController::class, 'update'])->name('tiffin-menu.update');
         Route::delete('/tiffin-menu/{tiffinMenuItem}', [TiffinMenuController::class, 'destroy'])->name('tiffin-menu.destroy');
     });
 
@@ -81,6 +87,12 @@ Route::middleware(['auth', 'merchant'])->group(function (): void {
         Route::post('/renewals/{prompt}/approve', [BillingController::class, 'approveRenewal'])->name('renewals.approve');
         Route::get('/settings', [SettingsController::class, 'edit'])->name('settings.edit');
         Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
+        Route::get('/staff', [StaffDirectoryController::class, 'index'])->name('staff.index');
+        Route::get('/staff/new', [StaffDirectoryController::class, 'create'])->name('staff.create');
+        Route::post('/staff', [StaffDirectoryController::class, 'store'])->name('staff.store');
+        Route::get('/staff/{user}/edit', [StaffDirectoryController::class, 'edit'])->name('staff.edit');
+        Route::put('/staff/{user}', [StaffDirectoryController::class, 'update'])->name('staff.update');
+        Route::put('/staff/{user}/password', [StaffDirectoryController::class, 'password'])->name('staff.password');
     });
 
     Route::middleware('role:owner,service')->group(function (): void {

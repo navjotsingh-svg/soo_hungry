@@ -61,11 +61,14 @@
                                                 @endif
                                                 {{ $item->name }}
                                             </span>
-                                            <form method="post" action="{{ route('tiffin-menu.destroy', $item) }}">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button class="quiet" type="submit">Remove</button>
-                                            </form>
+                                            <span class="dish-actions">
+                                                <a href="{{ route('tiffin-menu.edit', $item) }}">Edit</a>
+                                                <form method="post" action="{{ route('tiffin-menu.destroy', $item) }}">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button class="quiet" type="submit">Remove</button>
+                                                </form>
+                                            </span>
                                         </div>
                                     @empty
                                         <p class="empty">Nothing planned.</p>

@@ -116,6 +116,34 @@ class PackingActionsTest extends TestCase
             ])->assertNotFound();
     }
 
+    public function test_today_and_tomorrow_can_be_opened_as_one_meal(): void
+    {
+        $world = PilotWorld::merchant('Lets Tiffin', ['tiffin']);
+        $plan = PilotWorld::plan($world['merchant'], $world['user'], '+16045550123', credits: 6);
+        $fridayLunch = $this->entry($plan->id, '2026-11-27', 'lunch');
+        $fridayDinner = $this->entry($plan->id, '2026-11-27', 'dinner');
+
+        $lunch = $this->actingAs($world['user'])->withSession(['merchant_id' => $world['merchant']->id])
+            ->get('/packing?date=2026-11-27&slot=lunch');
+
+        $lunch->assertOk();
+        $lunch->assertSee('Today');
+        $lunch->assertSee('Tomorrow');
+        $lunch->assertSee('All meals');
+        $lunch->assertSee('/packing/'.$fridayLunch->id.'/fulfill', false);
+        $lunch->assertDontSee('/packing/'.$fridayDinner->id.'/fulfill', false);
+        $lunch->assertDontSee('No lunch orders for this date.');
+
+        $this->actingAs($world['user'])->withSession(['merchant_id' => $world['merchant']->id])
+            ->get('/packing?date=2026-11-27&slot=breakfast')
+            ->assertOk()
+            ->assertSee('No breakfast orders for this date.');
+
+        $this->actingAs($world['user'])->withSession(['merchant_id' => $world['merchant']->id])
+            ->post('/packing/'.$fridayLunch->id.'/fulfill', ['slot' => 'lunch'])
+            ->assertRedirect('/packing?date=2026-11-27&slot=lunch#list');
+    }
+
     public function test_staff_can_skip_lunch_on_saturday_and_keep_the_other_meals(): void
     {
         $world = PilotWorld::merchant('Lets Tiffin', ['tiffin']);

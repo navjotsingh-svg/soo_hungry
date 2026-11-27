@@ -20,6 +20,7 @@ class MerchantSwitchController extends Controller
         $belongs = MerchantUser::query()
             ->where('user_id', $request->user()->id)
             ->where('merchant_id', $merchantId)
+            ->where('active', true)
             ->exists();
         abort_unless($belongs, 403);
         $request->session()->put('merchant_id', $merchantId);

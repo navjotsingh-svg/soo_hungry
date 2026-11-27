@@ -7,7 +7,10 @@
             <p>WhatsApp orders, packing changes, and dues for this location.</p>
         </section>
         <section class="gate-panel">
-            <h1>Staff login</h1>
+            <div class="auth-box">
+            <p class="kicker">Staff</p>
+            <h1>Sign in</h1>
+            <p class="lede">Use the email for this workspace.</p>
             <form method="post" action="{{ route('login') }}">
                 @csrf
                 <label>Email
@@ -30,6 +33,7 @@
                     <p class="muted">Password for each is <code>password</code>.</p>
                 </article>
             @endif
+            </div>
         </section>
     </div>
 @endsection

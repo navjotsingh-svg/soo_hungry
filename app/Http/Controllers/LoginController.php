@@ -28,11 +28,11 @@ class LoginController extends Controller
         }
 
         $request->session()->regenerate();
-        $membership = $request->user()->memberships()->first();
+        $membership = $request->user()->memberships()->where('active', true)->first();
         if ($membership === null) {
             Auth::logout();
 
-            return back()->withErrors(['email' => 'This account is not on a merchant workspace.']);
+            return back()->withErrors(['email' => 'This account is inactive.']);
         }
 
         $request->session()->put('merchant_id', $membership->merchant_id);

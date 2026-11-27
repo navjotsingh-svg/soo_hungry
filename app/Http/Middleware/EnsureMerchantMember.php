@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use App\Models\MerchantUser;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureMerchantMember
@@ -14,9 +15,15 @@ class EnsureMerchantMember
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        $memberships = MerchantUser::query()->where('user_id', $user->id)->with('merchant')->get();
+        $memberships = MerchantUser::query()->where('user_id', $user->id)->where('active', true)->with('merchant')->get();
         if ($memberships->isEmpty()) {
-            abort(403, 'This account is not on a merchant workspace.');
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->withErrors([
+                'email' => 'This account is inactive.',
+            ]);
         }
 
         $merchantId = (int) $request->session()->get('merchant_id');

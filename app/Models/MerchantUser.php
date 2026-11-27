@@ -12,11 +12,14 @@ class MerchantUser extends Model
 {
     protected $table = 'merchant_user';
 
-    protected $fillable = ['merchant_id', 'user_id', 'role'];
+    protected $fillable = ['merchant_id', 'user_id', 'role', 'active'];
 
     protected function casts(): array
     {
-        return ['role' => StaffRole::class];
+        return [
+            'role' => StaffRole::class,
+            'active' => 'boolean',
+        ];
     }
 
     public function merchant(): BelongsTo
