@@ -64,6 +64,23 @@
             <p class="empty">Nothing outstanding as of {{ $report->asOf }}.</p>
         @endforelse
     </article>
+    <article class="card">
+        <h2>Reminders</h2>
+        <p class="muted">A reminder goes out on the due date when money is still owed. A full payment cancels one that has not been sent.</p>
+        @forelse ($reminders as $reminder)
+            @php($failed = $reminder->status === 'failed' || $reminder->notification?->status === 'failed')
+            <p>
+                <span class="who">{{ $reminder->bill->customer->displayName() }}</span>
+                · due {{ $reminder->due_on->format('M j') }}
+                · <span class="pill {{ $failed ? 'bad' : ($reminder->status === 'sent' ? 'good' : 'warn') }}">{{ $failed ? 'Failed' : \Illuminate\Support\Str::headline($reminder->status) }}</span>
+                @if ($failed && $reminder->notification?->failure_reason)
+                    <span class="sub">{{ $reminder->notification->failure_reason }}</span>
+                @endif
+            </p>
+        @empty
+            <p class="empty">No payment reminder has been queued.</p>
+        @endforelse
+    </article>
     <div class="work">
         <article class="card">
             <h2>“I paid” tasks</h2>

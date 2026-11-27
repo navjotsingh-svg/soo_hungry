@@ -14,10 +14,12 @@ use App\Http\Controllers\LoginController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\MerchantSwitchController;
 use App\Http\Controllers\PackingController;
+use App\Http\Controllers\PilotEvidenceController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StaffDirectoryController;
 use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\TiffinMenuController;
+use App\Http\Controllers\WhatsAppConnectionController;
 use App\Http\Controllers\WhatsAppWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -85,6 +87,14 @@ Route::middleware(['auth', 'merchant'])->group(function (): void {
         Route::get('/dues', [BillingController::class, 'index'])->name('billing.index');
         Route::post('/dues/{bill}/payments', [BillingController::class, 'payment'])->name('billing.payment');
         Route::post('/renewals/{prompt}/approve', [BillingController::class, 'approveRenewal'])->name('renewals.approve');
+        Route::get('/evidence', [PilotEvidenceController::class, 'index'])->name('evidence.index');
+        Route::get('/whatsapp', [WhatsAppConnectionController::class, 'edit'])->name('whatsapp.edit');
+        Route::post('/whatsapp/setup', [WhatsAppConnectionController::class, 'setup'])->name('whatsapp.setup');
+        Route::post('/whatsapp/meta', [WhatsAppConnectionController::class, 'meta'])->name('whatsapp.meta');
+        Route::post('/whatsapp/meta/start', [WhatsAppConnectionController::class, 'start'])->name('whatsapp.meta.start');
+        Route::get('/whatsapp/meta/callback', [WhatsAppConnectionController::class, 'callback'])->name('whatsapp.meta.callback');
+        Route::put('/whatsapp', [WhatsAppConnectionController::class, 'update'])->name('whatsapp.update');
+        Route::post('/whatsapp/disconnect', [WhatsAppConnectionController::class, 'disconnect'])->name('whatsapp.disconnect');
         Route::get('/settings', [SettingsController::class, 'edit'])->name('settings.edit');
         Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
         Route::get('/staff', [StaffDirectoryController::class, 'index'])->name('staff.index');

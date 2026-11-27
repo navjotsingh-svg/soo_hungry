@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Messaging\InboundProcessor;
 use App\Domain\Messaging\NotificationQueue;
+use App\Domain\Shared\Auditor;
 use App\Jobs\SendOutboundNotification;
 use App\Models\Conversation;
 use App\Models\OutboundNotification;
@@ -76,7 +77,7 @@ class InboxController extends StaffController
         return back()->with('status', 'Customer message received.');
     }
 
-    public function takeover(Request $request, Conversation $conversation): RedirectResponse
+    public function takeover(Request $request, Conversation $conversation, Auditor $auditor): RedirectResponse
     {
         $this->guard($request, $conversation);
         $conversation->update([
@@ -84,6 +85,7 @@ class InboxController extends StaffController
             'taken_over_by' => $request->user()->id,
             'taken_over_at' => now(),
         ]);
+        $auditor->record($conversation->merchant_id, $request->user(), 'conversation.taken_over', $conversation, 'staff');
 
         return back()->with('status', 'You have this chat. Automated replies are paused.');
     }

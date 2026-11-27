@@ -25,6 +25,7 @@
         </fieldset>
         <fieldset>
             <legend>WhatsApp</legend>
+            <p class="muted">The number, phone number id, and Meta token are on <a href="{{ route('whatsapp.edit') }}">WhatsApp</a>.</p>
             <label>Existing WhatsApp Business app number
                 <select name="existing_number_status">
                     @foreach (['unchecked' => 'Not checked', 'eligible' => 'Eligible to move', 'ineligible' => 'Keep the current app'] as $status => $label)

@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\Billing\BillingService;
 use App\Domain\Shared\Auditor;
 use App\Domain\Tiffin\MealAssignment;
+use App\Enums\PlanKind;
 use App\Enums\SubscriptionStatus;
+use App\Models\Bill;
 use App\Models\Customer;
 use App\Models\Subscription;
 use App\Models\TiffinMenuItem;
+use Carbon\CarbonImmutable;
 use App\Support\PhoneNumber;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -48,31 +53,43 @@ class CustomerDirectoryController extends StaffController
         return view('customers.form', [
             'customer' => new Customer(['language' => 'en']),
             'plan' => null,
+            'openingBill' => null,
             'days' => TiffinMenuItem::DAYS,
         ]);
     }
 
-    public function store(Request $request, Auditor $auditor, MealAssignment $assignment): RedirectResponse
+    public function store(Request $request, Auditor $auditor, MealAssignment $assignment, BillingService $billing): RedirectResponse
     {
         $merchant = $this->merchant($request);
         $data = $this->validated($request, $merchant->id);
         $schedule = $this->scheduleInput($request, $merchant->hasModule('tiffin'), false);
-        $customer = Customer::create([
-            'merchant_id' => $merchant->id,
-            'name' => $data['name'],
-            'phone_e164' => $data['phone'],
-            'address' => $data['address'],
-            'language' => $data['language'],
-        ]);
-        $auditor->record($merchant->id, $request->user(), 'customer.created', $customer, 'staff', [
-            'name' => $customer->name,
-            'phone' => PhoneNumber::mask($customer->phone_e164),
-        ]);
-        $scheduled = $this->applySchedule($request, $customer, $schedule, $assignment);
+        $openingInput = $this->openingInput($request, $merchant->hasModule('tiffin'));
+        [$customer, $scheduled, $opening] = DB::transaction(function () use ($request, $merchant, $data, $schedule, $openingInput, $auditor, $assignment, $billing): array {
+            $customer = Customer::create([
+                'merchant_id' => $merchant->id,
+                'name' => $data['name'],
+                'phone_e164' => $data['phone'],
+                'address' => $data['address'],
+                'language' => $data['language'],
+            ]);
+            $auditor->record($merchant->id, $request->user(), 'customer.created', $customer, 'staff', [
+                'name' => $customer->name,
+                'phone' => PhoneNumber::mask($customer->phone_e164),
+            ]);
+
+            return [
+                $customer,
+                $this->applySchedule($request, $customer, $schedule, $assignment),
+                $this->applyOpening($request, $customer, $openingInput, $billing, $auditor),
+            ];
+        });
 
         $status = $customer->name.' is on the customer list.';
         if ($scheduled) {
             $status .= ' The tiffin schedule is on the packing list.';
+        }
+        if ($opening !== null) {
+            $status .= ' '.$opening;
         }
 
         return redirect()->route('customers.index')->with('status', $status);
@@ -83,20 +100,24 @@ class CustomerDirectoryController extends StaffController
         $this->guard($request, $customer);
         $customer->load('subscriptions');
 
+        $plan = $this->activePlan($customer);
+
         return view('customers.form', [
             'customer' => $customer,
-            'plan' => $this->activePlan($customer),
+            'plan' => $plan,
+            'openingBill' => $plan === null ? null : Bill::query()->where('subscription_id', $plan->id)->where('cycle_key', 'opening')->first(),
             'days' => TiffinMenuItem::DAYS,
         ]);
     }
 
-    public function update(Request $request, Customer $customer, Auditor $auditor, MealAssignment $assignment): RedirectResponse
+    public function update(Request $request, Customer $customer, Auditor $auditor, MealAssignment $assignment, BillingService $billing): RedirectResponse
     {
         $this->guard($request, $customer);
         $merchant = $this->merchant($request);
         $customer->load('subscriptions');
         $data = $this->validated($request, $merchant->id, $customer->id);
         $schedule = $this->scheduleInput($request, $merchant->hasModule('tiffin'), $this->activePlan($customer) !== null);
+        $openingInput = $this->openingInput($request, $merchant->hasModule('tiffin'));
         $addressChanged = (string) $customer->address !== (string) $data['address'];
         $clearedApproval = $addressChanged && $customer->address_approved_at !== null;
         $customer->fill([
@@ -119,6 +140,10 @@ class CustomerDirectoryController extends StaffController
             $status = $customer->name.' was updated. The tiffin schedule is on the packing list.';
         } else {
             $status = $customer->name.' was updated.';
+        }
+        $opening = $this->applyOpening($request, $customer, $openingInput, $billing, $auditor);
+        if ($opening !== null) {
+            $status .= ' '.$opening;
         }
         if ($clearedApproval) {
             $status .= ' The address needs owner approval again before a new plan uses it.';
@@ -246,6 +271,112 @@ class CustomerDirectoryController extends StaffController
         $assignment->assign($customer, $schedule['days'], $schedule['breakfast'], $schedule['lunch'], $schedule['dinner'], $schedule['diet'], $request->user(), $schedule['day_meals']);
 
         return true;
+    }
+
+    /**
+     * @return array{credits: ?int, cents: int, due: ?string}|null
+     */
+    private function openingInput(Request $request, bool $tiffin): ?array
+    {
+        if (! $tiffin || (! $request->exists('opening_credits') && ! $request->exists('opening_balance'))) {
+            return null;
+        }
+
+        $data = $request->validate([
+            'opening_credits' => ['nullable', 'integer', 'between:0,500'],
+            'opening_balance' => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'opening_due' => ['nullable', 'date'],
+        ]);
+        $cents = (int) round(((float) ($data['opening_balance'] ?? 0)) * 100);
+        if ($cents > 0 && empty($data['opening_due'])) {
+            throw ValidationException::withMessages([
+                'opening_due' => 'Choose the due date for this balance.',
+            ]);
+        }
+
+        return [
+            'credits' => $request->filled('opening_credits') ? (int) $data['opening_credits'] : null,
+            'cents' => $cents,
+            'due' => $data['opening_due'] ?? null,
+        ];
+    }
+
+    /**
+     * @param  array{credits: ?int, cents: int, due: ?string}|null  $opening
+     */
+    private function applyOpening(Request $request, Customer $customer, ?array $opening, BillingService $billing, Auditor $auditor): ?string
+    {
+        if ($opening === null) {
+            return null;
+        }
+
+        $notes = [];
+        $plan = $this->activePlan($customer->load('subscriptions'));
+        if ($opening['credits'] !== null) {
+            $plan = $plan ?? $this->openingPlan($customer, $request->user()->id);
+            $plan->update(['portion_credits_remaining' => $opening['credits']]);
+            $notes[] = 'Opening meal credits are '.$opening['credits'].'.';
+        }
+        $cents = $opening['cents'];
+        if ($cents > 0) {
+            $plan = $plan ?? $this->openingPlan($customer, $request->user()->id);
+            $zone = $customer->merchant->timezone;
+            $today = CarbonImmutable::now($zone)->toDateString();
+            $due = CarbonImmutable::parse((string) $opening['due'], $zone)->toDateString();
+            $bill = $billing->issue($plan, 'opening', 'opening', $today, $today, $today, $due, $cents);
+            $changed = (int) $bill->amount_cents !== $cents || $bill->due_date->toDateString() !== $due;
+            if ($changed && $bill->payments()->exists()) {
+                throw ValidationException::withMessages([
+                    'opening_balance' => 'This opening bill already has a payment. Record a correction on Dues.',
+                ]);
+            }
+            if ($changed) {
+                $bill->update([
+                    'amount_cents' => $cents,
+                    'due_date' => $due,
+                    'issue_date' => $today,
+                    'period_start' => $today,
+                    'period_end' => $today,
+                ]);
+                $billing->refresh($bill);
+            }
+            $auditor->record($customer->merchant_id, $request->user(), 'opening.recorded', $bill, 'staff', [
+                'amount_cents' => $cents,
+                'due_date' => $due,
+            ]);
+            $notes[] = 'The unpaid balance is on Dues.';
+        }
+
+        return $notes === [] ? null : implode(' ', $notes);
+    }
+
+    private function openingPlan(Customer $customer, int $ownerId): Subscription
+    {
+        $zone = $customer->merchant->timezone;
+        $start = CarbonImmutable::now($zone)->startOfDay();
+
+        return Subscription::create([
+            'merchant_id' => $customer->merchant_id,
+            'customer_id' => $customer->id,
+            'status' => SubscriptionStatus::Active,
+            'plan_kind' => PlanKind::FixedPeriod,
+            'service_days' => [],
+            'breakfast_portions' => 0,
+            'lunch_portions' => 0,
+            'dinner_portions' => 0,
+            'meal_type' => 'regular',
+            'plan_price_cents' => 0,
+            'pack_size' => 0,
+            'pack_sequence' => 1,
+            'start_date' => $start->toDateString(),
+            'period_end' => $start->toDateString(),
+            'portion_credits_remaining' => 0,
+            'address' => $customer->address,
+            'terms_summary' => 'Opening balance entered by staff. This does not change the packing list.',
+            'customer_confirmed_at' => now(),
+            'owner_approved_at' => now(),
+            'owner_approved_by' => $ownerId,
+        ]);
     }
 
     private function activePlan(Customer $customer): ?Subscription

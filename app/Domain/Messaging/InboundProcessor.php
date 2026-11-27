@@ -16,6 +16,7 @@ use App\Models\PickupOrder;
 use App\Models\ProposedAction;
 use App\Models\StaffHandoff;
 use App\Models\Subscription;
+use App\Models\TiffinMenuItem;
 use App\Models\WebhookEvent;
 use App\Models\WhatsAppAccount;
 use App\Domain\Billing\BillingService;
@@ -285,8 +286,16 @@ final class InboundProcessor
             return;
         }
         if ($decision->path === 'menu') {
-            $names = collect($catalog)->pluck('name')->implode(', ');
+            $names = collect($catalog)->map(function (array $item): string {
+                return $item['name'].' $'.number_format($item['price_cents'] / 100, 2);
+            })->implode(', ');
             $this->reply($inbound, $names === '' ? 'The café menu is not loaded yet.' : 'Which item should I add? '.$names.'.');
+            $inbound->update(['result' => 'menu']);
+
+            return;
+        }
+        if ($decision->path === 'tiffin_menu') {
+            $this->reply($inbound, $this->tiffinMenuReply($merchant));
             $inbound->update(['result' => 'menu']);
 
             return;
@@ -525,6 +534,27 @@ final class InboundProcessor
             ->whereIn('status', [SubscriptionStatus::Active, SubscriptionStatus::Paused])
             ->latest('id')
             ->first();
+    }
+
+    private function tiffinMenuReply(Merchant $merchant): string
+    {
+        $items = TiffinMenuItem::query()
+            ->where('merchant_id', $merchant->id)
+            ->orderBy('day_of_week')
+            ->orderBy('slot')
+            ->get();
+        if ($items->isEmpty()) {
+            return 'The kitchen menu is not loaded yet. Tell me the day and meal to skip, pause, or change.';
+        }
+
+        $lines = $items->map(function (TiffinMenuItem $item): string {
+            $day = TiffinMenuItem::DAYS[$item->day_of_week] ?? 'Day';
+            $slot = TiffinMenuItem::SLOTS[$item->slot] ?? $item->slot;
+
+            return $day.' '.$slot.': '.$item->name;
+        })->implode('; ');
+
+        return 'This week: '.$lines.'. Say skip, pause, or the meal you want to change.';
     }
 
     /**

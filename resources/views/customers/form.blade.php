@@ -56,6 +56,23 @@
                 </div>
                 @error('diet')<p class="error">{{ $message }}</p>@enderror
             </fieldset>
+            <fieldset>
+                <legend>Opening balance</legend>
+                <span class="help">Credits already on the plan, and money already owed. A balance becomes one bill on Dues. Saving the schedule still does not send a new plan charge.</span>
+                <div class="row">
+                    <label>Meal credits
+                        <input type="number" name="opening_credits" min="0" max="500" value="{{ old('opening_credits', $plan->portion_credits_remaining ?? '') }}">
+                    </label>
+                    <label>Unpaid balance
+                        <input type="number" name="opening_balance" min="0" max="9999" step="0.01" value="{{ old('opening_balance', $openingBill ? number_format($openingBill->amount_cents / 100, 2, '.', '') : '') }}">
+                    </label>
+                    <label>Due date
+                        <input type="date" name="opening_due" value="{{ old('opening_due', $openingBill?->due_date?->toDateString()) }}">
+                    </label>
+                </div>
+                @error('opening_due')<p class="error">{{ $message }}</p>@enderror
+                @error('opening_balance')<p class="error">{{ $message }}</p>@enderror
+            </fieldset>
         @endif
         @if ($customer->exists && $customer->relationLoaded('subscriptions') && $customer->subscriptions->isNotEmpty())
             <p class="muted">Tiffin plans on this record: {{ $customer->subscriptions->map(fn ($plan) => \Illuminate\Support\Str::headline($plan->status->value))->implode(', ') }}.</p>

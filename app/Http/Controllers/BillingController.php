@@ -8,6 +8,7 @@ use App\Domain\Billing\BillingService;
 use App\Domain\Billing\CollectionReport;
 use App\Domain\Tiffin\RenewalService;
 use App\Models\Bill;
+use App\Models\PaymentReminder;
 use App\Models\PaymentTask;
 use App\Models\RenewalPrompt;
 use Carbon\CarbonImmutable;
@@ -25,8 +26,14 @@ class BillingController extends StaffController
         $report = $reports->forMerchant($merchant, $month);
         $tasks = PaymentTask::query()->where('merchant_id', $merchant->id)->where('status', 'open')->with('customer', 'bill')->get();
         $renewals = RenewalPrompt::query()->where('merchant_id', $merchant->id)->whereNull('bill_id')->with('subscription.customer')->get();
+        $reminders = PaymentReminder::query()
+            ->where('merchant_id', $merchant->id)
+            ->with('bill.customer', 'notification')
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
 
-        return view('billing.index', compact('month', 'report', 'tasks', 'renewals'));
+        return view('billing.index', compact('month', 'report', 'tasks', 'renewals', 'reminders'));
     }
 
     public function payment(Request $request, Bill $bill, BillingService $billing): RedirectResponse

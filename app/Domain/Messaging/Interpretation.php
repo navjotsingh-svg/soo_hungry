@@ -60,6 +60,11 @@ final class Interpretation
         return new self('renewal');
     }
 
+    public static function menu(): self
+    {
+        return new self('menu');
+    }
+
     public static function ambiguous(bool $punjabi): self
     {
         return new self('ambiguous', ambiguousPunjabi: $punjabi);

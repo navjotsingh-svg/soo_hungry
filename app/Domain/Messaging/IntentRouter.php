@@ -38,6 +38,17 @@ final class IntentRouter
             );
         }
 
+        if ($interpretation->kind === 'menu') {
+            if ($cafe) {
+                return new RouteDecision('menu');
+            }
+            if ($tiffin) {
+                return new RouteDecision('tiffin_menu');
+            }
+
+            return new RouteDecision('handoff', 'A person will look at this message.', 'unclear');
+        }
+
         if ($interpretation->kind === 'ambiguous') {
             if ($cafe && $tiffin) {
                 return new RouteDecision('clarify', (string) config('pilot.clarify_both_modules'));

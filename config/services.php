@@ -29,7 +29,9 @@ return [
     ],
 
     'whatsapp' => [
+        'app_id' => env('WHATSAPP_APP_ID'),
         'app_secret' => env('WHATSAPP_APP_SECRET'),
+        'embedded_signup_config_id' => env('WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID'),
         'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
         'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),
         'driver' => env('WHATSAPP_DRIVER', 'log'),

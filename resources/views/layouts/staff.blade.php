@@ -63,6 +63,8 @@
             <p class="nav-label">Account</p>
             @if ($membership->role->changesCredentials())
                 <a class="nav-link {{ request()->routeIs('staff.*') ? 'active' : '' }}" href="{{ route('staff.index') }}">Staff</a>
+                <a class="nav-link {{ request()->routeIs('evidence.*') ? 'active' : '' }}" href="{{ route('evidence.index') }}">Pilot log</a>
+                <a class="nav-link {{ request()->routeIs('whatsapp.*') ? 'active' : '' }}" href="{{ route('whatsapp.edit') }}">WhatsApp</a>
                 <a class="nav-link {{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.edit') }}">Settings</a>
             @endif
             <a class="nav-link {{ request()->routeIs('account.password') ? 'active' : '' }}" href="{{ route('account.password') }}">Password</a>

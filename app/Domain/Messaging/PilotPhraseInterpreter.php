@@ -48,6 +48,10 @@ final class PilotPhraseInterpreter
             return Interpretation::renewal();
         }
 
+        if (preg_match('/\b(menu|what\'s available|whats available)\b/', $text) || preg_match('/\bwhat(?:\'s| is) on\b/', $text)) {
+            return Interpretation::menu();
+        }
+
         if (preg_match('/\b(feedback|complaint|refund)\b/', $text)) {
             return Interpretation::handoff('feedback');
         }
@@ -81,10 +85,11 @@ final class PilotPhraseInterpreter
         $openCue = (bool) preg_match('/\b(until i say|until further notice|open ended|open-ended|indefinitely)\b/', $text);
 
         $skipSlots = [];
-        if (preg_match('/lunch\s+na\s+bhej/', $text) || (preg_match("/\b(skip|don't send|do not send)\b/", $text) && preg_match('/\blunch\b/', $text)) || preg_match('/\bno lunch\b/', $text)) {
+        $notNeeded = (bool) preg_match('/\b(not needed|no need|not need|don\'t need|do not need)\b/', $text);
+        if (preg_match('/lunch\s+na\s+bhej/', $text) || (preg_match("/\b(skip|don't send|do not send)\b/", $text) && preg_match('/\blunch\b/', $text)) || preg_match('/\bno lunch\b/', $text) || ($notNeeded && preg_match('/\blunch\b/', $text))) {
             $skipSlots[] = 'lunch';
         }
-        if (preg_match('/dinner\s+na\s+bhej/', $text) || (preg_match("/\b(skip|don't send|do not send)\b/", $text) && preg_match('/\bdinner\b/', $text)) || preg_match('/\bno dinner\b/', $text)) {
+        if (preg_match('/dinner\s+na\s+bhej/', $text) || (preg_match("/\b(skip|don't send|do not send)\b/", $text) && preg_match('/\bdinner\b/', $text)) || preg_match('/\bno dinner\b/', $text) || ($notNeeded && preg_match('/\bdinner\b/', $text))) {
             $skipSlots[] = 'dinner';
         }
         if (preg_match("/\b(skip|don't send|do not send)\b/", $text) && ! preg_match('/\b(lunch|dinner)\b/', $text)) {

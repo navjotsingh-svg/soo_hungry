@@ -13,16 +13,18 @@ class WhatsAppAccount extends Model
 
     protected $fillable = [
         'merchant_id', 'location_id', 'phone_number_id', 'waba_id', 'display_number',
+        'meta_app_id', 'meta_config_id', 'meta_app_secret',
         'access_token', 'status', 'existing_number_status', 'production_access_confirmed_at',
         'google_chat_status',
     ];
 
-    protected $hidden = ['access_token'];
+    protected $hidden = ['access_token', 'meta_app_secret'];
 
     protected function casts(): array
     {
         return [
             'access_token' => 'encrypted',
+            'meta_app_secret' => 'encrypted',
             'production_access_confirmed_at' => 'datetime',
         ];
     }

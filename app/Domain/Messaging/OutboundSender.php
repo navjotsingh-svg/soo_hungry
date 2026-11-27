@@ -12,7 +12,7 @@ use Throwable;
 
 final class OutboundSender
 {
-    public function __construct(private readonly WhatsAppClient $client) {}
+    public function __construct(private readonly WhatsAppClientResolver $clients) {}
 
     public function send(OutboundNotification $notification): void
     {
@@ -65,10 +65,11 @@ final class OutboundSender
 
         try {
             $account = WhatsAppAccount::query()->where('merchant_id', $notification->merchant_id)->first();
+            $client = $this->clients->forAccount($account);
             $to = (string) $notification->customer?->phone_e164;
             $providerId = $notification->template_name
-                ? $this->client->sendTemplate($account, $to, $notification->template_name, $notification->body)
-                : $this->client->sendText($account, $to, $notification->body);
+                ? $client->sendTemplate($account, $to, $notification->template_name, $notification->body)
+                : $client->sendText($account, $to, $notification->body);
             $notification->update([
                 'status' => 'sent',
                 'provider_message_id' => $providerId,
